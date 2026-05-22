@@ -1615,7 +1615,7 @@ export default function HerdPage() {
                         }}
                         className={cn(
                           "flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all",
-                          sex === 'Male' ? "bg-white text-primary shadow-sm" : "text-outline hover:text-on-surface"
+                          sex === 'Male' ? "bg-green-600 text-white shadow-sm" : "text-outline hover:text-on-surface"
                         )}
                       >
                         <Mars className="w-4 h-4" /> Macho
@@ -1628,7 +1628,7 @@ export default function HerdPage() {
                         }}
                         className={cn(
                           "flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all",
-                          sex === 'Female' ? "bg-white text-primary shadow-sm" : "text-outline hover:text-on-surface"
+                          sex === 'Female' ? "bg-green-600 text-white shadow-sm" : "text-outline hover:text-on-surface"
                         )}
                       >
                         <Venus className="w-4 h-4" /> Fêmea
