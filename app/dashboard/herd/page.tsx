@@ -182,6 +182,37 @@ export default function HerdPage() {
 
   const [reproToast, setReproToast] = React.useState<{type: 'success' | 'error', message: string} | null>(null)
 
+  const [isEditingPasture, setIsEditingPasture] = React.useState(false)
+  const [selectedPastureVal, setSelectedPastureVal] = React.useState('')
+  const [savingPasture, setSavingPasture] = React.useState(false)
+
+  const handleUpdatePasture = async () => {
+    if (!selectedAnimal || !selectedFarmId || !isSupabaseConfigured()) return
+    setSavingPasture(true)
+    try {
+      const { error } = await (supabase.from('cattle') as any)
+        .update({ pasture: selectedPastureVal || null })
+        .eq('id', selectedAnimal.id)
+
+      if (error) throw error
+
+      // Update local state
+      setSelectedAnimal(prev => prev ? { ...prev, pasture: selectedPastureVal || undefined } : null)
+      setReproToast({ type: 'success', message: 'Lote/Pasto atualizado com sucesso!' })
+      // Auto dismiss success toast after 4 seconds
+      setTimeout(() => setReproToast(null), 4000)
+
+      setIsEditingPasture(false)
+      // Refresh general list
+      await fetchCattle(selectedFarmId)
+    } catch (err: any) {
+      console.error('Error updating pasture:', err)
+      setReproToast({ type: 'error', message: 'Erro ao atualizar lote/pasto: ' + err.message })
+    } finally {
+      setSavingPasture(false)
+    }
+  }
+
   const handleRegisterWeaning = async (calfId: string) => {
     if (!isSupabaseConfigured() || !selectedFarmId) {
       setReproToast({ type: 'error', message: 'Configuração inválida ou Fazenda não selecionada.' })
@@ -252,7 +283,7 @@ export default function HerdPage() {
     category: 'Bezerro',
     breed: '',
     weight_kg: '',
-    pasture: 'Pasto Sul - Lote A',
+    pasture: '',
     mother_id: '',
     father_id: ''
   })
@@ -334,8 +365,8 @@ export default function HerdPage() {
       const pasturesData = (data || []) as Pasture[]
       setPasturesList(pasturesData)
       
-      // Update default pasture if list is not empty and current is placeholder
-      if (pasturesData.length > 0 && (!formData.pasture || formData.pasture.includes('Pasto Sul'))) {
+      // Update default pasture if list is not empty and current is empty
+      if (pasturesData.length > 0 && !formData.pasture) {
         setFormData(prev => ({ ...prev, pasture: pasturesData[0].name }))
       }
     } catch (err) {
@@ -424,6 +455,8 @@ export default function HerdPage() {
   React.useEffect(() => {
     if (selectedAnimal && activeTab === 'details') {
       const timer = setTimeout(() => {
+        setSelectedPastureVal(selectedAnimal.pasture || '')
+        setIsEditingPasture(false)
         fetchWeightHistory(selectedAnimal.id)
         fetchReproductiveStatus(selectedAnimal.id)
         fetchHealthHistory(selectedAnimal.id)
@@ -1615,7 +1648,7 @@ export default function HerdPage() {
                         }}
                         className={cn(
                           "flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all",
-                          sex === 'Male' ? "bg-green-600 text-white shadow-sm" : "text-outline hover:text-on-surface"
+                          sex === 'Male' ? "bg-primary text-white shadow-sm font-black" : "text-outline hover:text-on-surface"
                         )}
                       >
                         <Mars className="w-4 h-4" /> Macho
@@ -1628,7 +1661,7 @@ export default function HerdPage() {
                         }}
                         className={cn(
                           "flex-1 py-2.5 rounded-lg text-xs font-bold flex items-center justify-center gap-2 transition-all",
-                          sex === 'Female' ? "bg-green-600 text-white shadow-sm" : "text-outline hover:text-on-surface"
+                          sex === 'Female' ? "bg-primary text-white shadow-sm font-black" : "text-outline hover:text-on-surface"
                         )}
                       >
                         <Venus className="w-4 h-4" /> Fêmea
@@ -1719,15 +1752,14 @@ export default function HerdPage() {
                     <div className="relative">
                       <select id="pasture" value={formData.pasture} onChange={handleChange} className="w-full p-4 bg-surface-container-low border border-outline-variant rounded-xl font-medium outline-none appearance-none focus:border-primary transition-all">
                         {pasturesList.length === 0 ? (
+                          <option value="">Nenhum pasto cadastrado</option>
+                        ) : (
                           <>
                             <option value="">Selecione um lote</option>
-                            <option>Pasto Sul - Lote A</option>
-                            <option>Pasto Norte - Lote B</option>
+                            {pasturesList.map(p => (
+                              <option key={p.id} value={p.name}>{p.name}</option>
+                            ))}
                           </>
-                        ) : (
-                          pasturesList.map(p => (
-                            <option key={p.id} value={p.name}>{p.name}</option>
-                          ))
                         )}
                       </select>
                       <ChevronDown className="absolute right-4 top-1/2 -translate-y-1/2 text-outline w-4 h-4 pointer-events-none" />
@@ -2026,8 +2058,7 @@ export default function HerdPage() {
                   {[
                     { label: 'Raça', value: selectedAnimal.breed || 'Nelore', icon: Info },
                     { label: 'Categoria', value: selectedAnimal.category || 'N/A', icon: Package },
-                    { label: 'Peso Atual', value: `${selectedAnimal.weight_kg || '0'} kg`, icon: History },
-                    { label: 'Pasto', value: selectedAnimal.pasture || 'Pasto A', icon: Search },
+                    { label: 'Peso Atual', value: selectedAnimal.weight_kg ? `${selectedAnimal.weight_kg} kg` : '0 kg', icon: History },
                   ].map((stat, i) => (
                     <div key={i} className="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant">
                       <p className="text-[10px] uppercase tracking-widest font-bold text-outline mb-1">{stat.label}</p>
@@ -2037,6 +2068,71 @@ export default function HerdPage() {
                       </div>
                     </div>
                   ))}
+
+                  {/* Pasto Stat Card - EDITABLE */}
+                  <div className="bg-surface-container-lowest p-6 rounded-2xl border border-outline-variant flex flex-col justify-between relative group">
+                    <div>
+                      <div className="flex justify-between items-center mb-1">
+                        <p className="text-[10px] uppercase tracking-widest font-bold text-outline">Pasto</p>
+                        {!isEditingPasture && (
+                          <button 
+                            type="button"
+                            onClick={() => {
+                              setSelectedPastureVal(selectedAnimal.pasture || '')
+                              setIsEditingPasture(true)
+                            }}
+                            className="text-[10px] font-bold text-primary hover:underline flex items-center gap-0.5 cursor-pointer"
+                          >
+                            Editar
+                          </button>
+                        )}
+                      </div>
+                      
+                      {isEditingPasture ? (
+                        <div className="space-y-2 mt-1">
+                          <div className="relative">
+                            <select
+                              value={selectedPastureVal}
+                              onChange={(e) => setSelectedPastureVal(e.target.value)}
+                              className="w-full text-xs p-2 bg-surface-container-low border border-outline-variant rounded-lg font-bold outline-none appearance-none focus:border-primary pr-8"
+                              disabled={savingPasture}
+                            >
+                              <option value="">Nenhum pasto</option>
+                              {pasturesList.map(p => (
+                                <option key={p.id} value={p.name}>{p.name}</option>
+                              ))}
+                            </select>
+                            <ChevronDown className="absolute right-2 top-1/2 -translate-y-1/2 text-outline w-3.5 h-3.5 pointer-events-none" />
+                          </div>
+                          <div className="flex gap-1.5 justify-end">
+                            <button
+                              type="button"
+                              onClick={() => setIsEditingPasture(false)}
+                              className="px-2 py-1 text-[10px] font-bold text-outline hover:bg-black/5 rounded"
+                              disabled={savingPasture}
+                            >
+                              Cancelar
+                            </button>
+                            <button
+                              type="button"
+                              onClick={handleUpdatePasture}
+                              className="px-2.5 py-1 text-[10px] font-bold bg-primary text-white hover:bg-primary-dark rounded flex items-center gap-1"
+                              disabled={savingPasture}
+                            >
+                              {savingPasture ? 'Salvando...' : 'Salvar'}
+                            </button>
+                          </div>
+                        </div>
+                      ) : (
+                        <div className="flex items-center gap-2 mt-1">
+                          <Search className="w-4 h-4 text-primary opacity-50" />
+                          <span className="text-xl font-bold text-on-surface truncate">
+                            {selectedAnimal.pasture || 'Nenhum Pasto'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  </div>
                 </div>
 
                 {/* Main Content Grid */}
